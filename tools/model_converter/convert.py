@@ -56,6 +56,14 @@ parser.add_argument(
     '--yolo4_reorder',
     help='Reorder output tensors for YOLOv4 cfg and weights file.',
     action='store_true')
+parser.add_argument(
+    '--i_h',
+    help='Height of the input.',
+    default=None)
+parser.add_argument(
+    '--i_w',
+    help='Width of the input.',
+    default=None)
 
 
 def unique_config_sections(config_file):
@@ -109,14 +117,17 @@ def main(args):
     weight_decay = float(cfg_parser['net_0']['decay']) if 'net_0' in cfg_parser.sections() else 5e-4
 
     # Parase model input width, height
-    width = int(cfg_parser['net_0']['width']) if 'net_0' in cfg_parser.sections() else None
-    height = int(cfg_parser['net_0']['height']) if 'net_0' in cfg_parser.sections() else None
+    if args.fixed_input_shape:
+      width = int(cfg_parser['net_0']['width']) if 'net_0' in cfg_parser.sections() else None
+      height = int(cfg_parser['net_0']['height']) if 'net_0' in cfg_parser.sections() else None
+    else:
+      if args.i_w is None or args.i_h is None:
+        raise ValueError(f"WIDTH or HEIGHT is None! but `-f` has not been specified, w:{width}, h:{height}")
+      width = int(args.i_w)
+      height = int(args.i_h)
 
     print('Creating Keras model.')
-    if width and height and args.fixed_input_shape:
-        input_layer = Input(shape=(height, width, 3), name='image_input')
-    else:
-        input_layer = Input(shape=(None, None, 3), name='image_input')
+    input_layer = Input(shape=(height, width, 3), name='image_input')
     prev_layer = input_layer
     all_layers = []
 
@@ -253,8 +264,7 @@ def main(args):
                 prev_layer = act_layer
                 all_layers.append(act_layer)
             elif activation == 'leaky':
-                act_layer = ReLU()(prev_layer)
-                # act_layer = LeakyReLU(alpha=0.1)(prev_layer)
+                act_layer = LeakyReLU(alpha=0.1)(prev_layer)
                 prev_layer = act_layer
                 all_layers.append(act_layer)
             elif activation == 'relu':
